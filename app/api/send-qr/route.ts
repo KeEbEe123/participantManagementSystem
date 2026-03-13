@@ -1,18 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import QRCode from 'qrcode'
 import { BrevoClient } from '@getbrevo/brevo'
+import { supabaseAdmin } from '../../../lib/supabase'
 
 export async function POST(request: NextRequest) {
   try {
-    const { registrationCode, email, name, workshopName } = await request.json()
+    const { registrationCode, email, name, workshopName, registrationId } = await request.json()
 
-    console.log('Received request:', { registrationCode, email, name, workshopName })
+    console.log('Received request:', { registrationCode, email, name, workshopName, registrationId })
 
     // Validate required fields
-    if (!registrationCode || !email || !name || !workshopName) {
+    if (!registrationCode || !email || !name || !workshopName || !registrationId) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
+      )
+    }
+
+    // Validate Supabase admin client
+    if (!supabaseAdmin) {
+      console.error('SUPABASE_SERVICE_ROLE_KEY not found in environment variables')
+      return NextResponse.json(
+        { success: false, error: 'Database service not configured' },
+        { status: 500 }
       )
     }
 
@@ -104,10 +114,57 @@ export async function POST(request: NextRequest) {
     
     console.log('Brevo response:', result)
     
+    // Update registration status to approved after successful email send
+    console.log('Updating registration status to confirmed for ID:', registrationId)
+    
+    // First, let's verify the registration exists
+    const { data: existingReg, error: fetchError } = await supabaseAdmin
+      .from('registrations')
+      .select('id, status')
+      .eq('id', registrationId)
+      .single()
+
+    if (fetchError) {
+      console.error('Error fetching registration:', fetchError)
+      return NextResponse.json({ 
+        success: true, 
+        messageId: result.messageId,
+        message: 'QR code sent successfully but could not verify registration',
+        warning: 'Could not verify registration in database',
+        error: fetchError.message
+      })
+    }
+
+    console.log('Found registration:', existingReg)
+
+    const { data: updateData, error: updateError } = await supabaseAdmin
+      .from('registrations')
+      .update({ 
+        status: 'confirmed',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', registrationId)
+      .select()
+
+    if (updateError) {
+      console.error('Error updating registration status:', updateError)
+      console.error('Update error details:', JSON.stringify(updateError, null, 2))
+      // Email was sent but status update failed - log this but don't fail the request
+      return NextResponse.json({ 
+        success: true, 
+        messageId: result.messageId,
+        message: 'QR code sent successfully but status update failed',
+        warning: 'Status not updated in database',
+        error: updateError.message
+      })
+    }
+
+    console.log('Registration status updated successfully:', updateData)
+    
     return NextResponse.json({ 
       success: true, 
       messageId: result.messageId,
-      message: 'QR code sent successfully' 
+      message: 'QR code sent successfully and registration confirmed' 
     })
 
   } catch (error) {

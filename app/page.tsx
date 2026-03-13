@@ -14,36 +14,95 @@ export default function Dashboard() {
   const [sendingEmail, setSendingEmail] = useState(false)
   const [paymentImageUrl, setPaymentImageUrl] = useState<string | null>(null)
   const [imageLoading, setImageLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState<'pending' | 'approved'>('pending')
+  const [pendingRegistrations, setPendingRegistrations] = useState<Registration[]>([])
+  const [approvedRegistrations, setApprovedRegistrations] = useState<Registration[]>([])
 
   useEffect(() => {
-    fetchPendingRegistrations()
+    console.log('Component mounted, checking Supabase config...')
+    console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+    console.log('Supabase Anon Key exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+    fetchRegistrations()
   }, [])
 
-  const fetchPendingRegistrations = async () => {
+  const fetchRegistrations = async () => {
     try {
+      console.log('Fetching registrations...')
+      
+      // First, test a simple query without joins
+      const { data: simpleData, error: simpleError } = await supabase
+        .from('registrations')
+        .select('*')
+        .in('status', ['pending', 'confirmed'])
+        .order('created_at', { ascending: false })
+
+      console.log('Simple query result:', { simpleData, simpleError })
+
+      if (simpleError) {
+        console.error('Simple query failed:', simpleError)
+        throw simpleError
+      }
+
+      // If simple query works, try with workshops join
       const { data, error } = await supabase
         .from('registrations')
         .select(`
           *,
           workshops(name)
         `)
-        .eq('status', 'pending')
+        .in('status', ['pending', 'confirmed'])
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      console.log('Join query result:', { data, error })
+
+      if (error) {
+        console.error('Join query failed, falling back to simple data:', error)
+        // Fallback to simple data without workshop names
+        const formattedData = simpleData?.map(reg => ({
+          ...reg,
+          workshop_name: `Workshop ${reg.workshop_id}` // Fallback name
+        })) || []
+
+        const pending = formattedData.filter(reg => reg.status === 'pending')
+        const confirmed = formattedData.filter(reg => reg.status === 'confirmed')
+        
+        setPendingRegistrations(pending)
+        setApprovedRegistrations(confirmed)
+        setRegistrations(activeTab === 'pending' ? pending : confirmed)
+        return
+      }
 
       const formattedData = data?.map(reg => ({
         ...reg,
-        workshop_name: reg.workshops?.name
+        workshop_name: reg.workshops?.name || `Workshop ${reg.workshop_id}`
       })) || []
 
-      setRegistrations(formattedData)
+      console.log('Formatted data:', formattedData)
+
+      const pending = formattedData.filter(reg => reg.status === 'pending')
+      const confirmed = formattedData.filter(reg => reg.status === 'confirmed')
+      
+      console.log('Filtered data:', { pending: pending.length, confirmed: confirmed.length })
+      
+      setPendingRegistrations(pending)
+      setApprovedRegistrations(confirmed)
+      setRegistrations(activeTab === 'pending' ? pending : confirmed)
     } catch (error) {
       console.error('Error fetching registrations:', error)
+      console.error('Error type:', typeof error)
+      console.error('Error keys:', Object.keys(error || {}))
+      if (error instanceof Error) {
+        console.error('Error message:', error.message)
+        console.error('Error stack:', error.stack)
+      }
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    setRegistrations(activeTab === 'pending' ? pendingRegistrations : approvedRegistrations)
+  }, [activeTab, pendingRegistrations, approvedRegistrations])
 
   const fetchTeamMembers = async (registrationId: string) => {
     try {
@@ -73,19 +132,11 @@ export default function Dashboard() {
     try {
       setSendingEmail(true)
       
-      // Update registration status
-      const { error: updateError } = await supabase
-        .from('registrations')
-        .update({ status: 'confirmed' })
-        .eq('id', registration.id)
-
-      if (updateError) throw updateError
-
-      // Generate and send QR code
+      // Generate and send QR code (this will also update the status)
       await generateAndSendQR(registration)
 
       // Refresh the list
-      fetchPendingRegistrations()
+      fetchRegistrations()
       setSelectedRegistration(null)
       setQrCodePreview(null)
     } catch (error) {
@@ -105,20 +156,28 @@ export default function Dashboard() {
         },
         body: JSON.stringify({
           registrationCode: registration.registration_code,
+          registrationId: registration.id,
           email: registration.email_id,
           name: registration.full_name,
           workshopName: registration.workshop_name
         }),
       })
 
+      const result = await response.json()
+
       if (!response.ok) {
-        throw new Error('Failed to send QR code')
+        throw new Error(result.error || 'Failed to send QR code')
       }
 
-      alert('Registration approved and QR code sent!')
+      if (result.warning) {
+        alert(`${result.message}\n\nWarning: ${result.warning}`)
+      } else {
+        alert('Registration confirmed and QR code sent!')
+      }
     } catch (error) {
       console.error('Error sending QR code:', error)
-      alert('Registration approved but failed to send QR code')
+      alert('Failed to send QR code: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      throw error
     }
   }
 
@@ -164,9 +223,39 @@ export default function Dashboard() {
           Participant Management Dashboard
         </h1>
 
+        {/* Tab Navigation */}
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('pending')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'pending'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Pending ({pendingRegistrations.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('approved')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'approved'
+                    ? 'border-green-500 text-green-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Confirmed ({approvedRegistrations.length})
+              </button>
+            </nav>
+          </div>
+        </div>
+
         {registrations.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-700 text-lg">No pending registrations</p>
+            <p className="text-gray-700 text-lg">
+              {activeTab === 'pending' ? 'No pending registrations' : 'No confirmed registrations'}
+            </p>
           </div>
         ) : (
           <div className="grid gap-6">
@@ -174,9 +263,23 @@ export default function Dashboard() {
               <div key={registration.id} className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <h3 className="text-xl font-semibold text-gray-900">
-                      {registration.full_name}
-                    </h3>
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-xl font-semibold text-gray-900">
+                        {registration.full_name}
+                      </h3>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                        registration.status === 'pending' 
+                          ? 'bg-yellow-100 text-yellow-800' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {registration.status === 'confirmed' ? 'CONFIRMED' : registration.status.toUpperCase()}
+                      </span>
+                      {registration.registration_code && (
+                        <span className="px-2 py-1 text-xs font-mono bg-gray-100 text-gray-700 rounded">
+                          {registration.registration_code}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-gray-700 font-medium">{registration.email_id}</p>
                     <p className="text-gray-700">{registration.mobile_number}</p>
                     <div className="mt-2 flex gap-4 text-sm text-gray-800">
@@ -192,12 +295,14 @@ export default function Dashboard() {
                     >
                       View Details
                     </button>
-                    <button
-                      onClick={() => approveRegistration(registration)}
-                      className="px-4 py-2 bg-green-700 text-white font-medium rounded-md hover:bg-green-800 transition-colors"
-                    >
-                      Approve
-                    </button>
+                    {activeTab === 'pending' && (
+                      <button
+                        onClick={() => approveRegistration(registration)}
+                        className="px-4 py-2 bg-green-700 text-white font-medium rounded-md hover:bg-green-800 transition-colors"
+                      >
+                        Confirm
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -341,13 +446,22 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex gap-3 pt-6 border-t border-gray-200 mt-6">
-                  <button
-                    onClick={() => approveRegistration(selectedRegistration)}
-                    disabled={sendingEmail}
-                    className="px-6 py-3 bg-green-700 text-white font-semibold rounded-md hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {sendingEmail ? 'Sending...' : 'Approve & Send QR Code'}
-                  </button>
+                  {selectedRegistration.status === 'pending' ? (
+                    <button
+                      onClick={() => approveRegistration(selectedRegistration)}
+                      disabled={sendingEmail}
+                      className="px-6 py-3 bg-green-700 text-white font-semibold rounded-md hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {sendingEmail ? 'Sending...' : 'Confirm & Send QR Code'}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 px-6 py-3 bg-green-100 text-green-800 font-semibold rounded-md">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                      Registration Confirmed
+                    </div>
+                  )}
                   <button
                     onClick={() => {
                       setSelectedRegistration(null)
@@ -380,7 +494,7 @@ export default function Dashboard() {
                 Register Now
               </button>
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => fetchRegistrations()}
                 className="px-6 py-3 bg-gray-700 text-white font-semibold rounded-lg hover:bg-gray-600 transition-colors"
               >
                 Refresh Dashboard
