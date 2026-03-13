@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Participant Management Dashboard
 
-## Getting Started
+A Next.js application for managing workshop registrations with payment verification and QR code generation.
 
-First, run the development server:
+## Features
 
+- **View Pending Registrations**: See all participants waiting for approval
+- **Payment Verification**: View payment screenshots uploaded by participants
+- **Team Management**: Handle solo, duo, and trio registrations with team member details
+- **QR Code Generation**: Automatically generate unique QR codes for approved participants
+- **Email Integration**: Send confirmation emails with QR codes using Brevo API
+- **Real-time Updates**: Dashboard updates automatically when registrations are approved
+
+## Setup
+
+1. Install dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Configure environment variables in `.env`:
+```env
+BREVO_API_KEY=your_brevo_api_key
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Run the development server:
+```bash
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-## Learn More
+## Database Schema
 
-To learn more about Next.js, take a look at the following resources:
+The application expects the following Supabase tables:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `workshops` - Workshop information
+- `registrations` - Main registration data with payment screenshots and status
+- `registration_members` - Team members for group registrations
+- Storage bucket: `payment-screenshots` for payment verification images
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Usage
 
-## Deploy on Vercel
+1. **View Registrations**: The dashboard shows all pending registrations with participant details
+2. **Review Details**: Click "View Details" to see full participant information, team members, and payment screenshot
+3. **QR Code Preview**: The modal shows a preview of the QR code that will be sent
+4. **Approve Registration**: Click "Approve & Send QR Code" to:
+   - Update registration status to 'confirmed'
+   - Generate a unique QR code with the registration ID
+   - Send confirmation email with QR code attachment via Brevo
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## API Endpoints
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `POST /api/send-qr` - Generates QR code and sends confirmation email
+
+## Technologies Used
+
+- Next.js 16 with App Router
+- TypeScript
+- Tailwind CSS
+- Supabase (Database & Storage)
+- QRCode library for QR generation
+- Brevo API for email sending
