@@ -38,8 +38,7 @@ const supabase = createClient(
 console.log('✅ Supabase client initialized');
 
 // WhatsApp client setup
-const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || "/opt/render/.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome";
-console.log('🚀 Bot startup - Chrome path:', chromePath);
+
 
 const client = new Client({
   authStrategy: new LocalAuth({
