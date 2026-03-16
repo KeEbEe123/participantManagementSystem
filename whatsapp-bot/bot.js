@@ -39,7 +39,8 @@ const client = new Client({
   puppeteer: {
     headless: true,
     // Use system Chrome if available, otherwise let Puppeteer handle it
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || 
+"/opt/render/.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome",
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
