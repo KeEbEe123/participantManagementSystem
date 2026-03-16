@@ -161,30 +161,64 @@ export async function POST(request: NextRequest) {
 
     console.log('Registration status updated successfully:', updateData)
     
-    // Send WhatsApp notification (optional, won't fail if service is down)
+    // Trigger n8n webhook for WhatsApp notification
     try {
-      const whatsappServiceUrl = process.env.WHATSAPP_SERVICE_URL
-      if (whatsappServiceUrl) {
-        const whatsappMessage = `🎉 *NEW REGISTRATION APPROVED* 🎉
+      const n8nWebhookUrl = process.env.N8N_WEBHOOK_URL
+      if (n8nWebhookUrl) {
+        // Get current registration details for registration type
+        const { data: currentRegistration, error: regError } = await supabaseAdmin
+          .from('registrations')
+          .select('registration_type')
+          .eq('id', registrationId)
+          .single()
 
-📋 *Registration Code:* ${registrationCode}
-👤 *Name:* ${name}
-🎯 *Workshop:* ${workshopName}
+        // Get total teams registered (count of all registrations)
+        const { count: totalTeams, error: teamsError } = await supabaseAdmin
+          .from('registrations')
+          .select('*', { count: 'exact', head: true })
 
-✅ *Status:* CONFIRMED
-📅 *Approved:* ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+        // Get total people registered (registrations + members)
+        const { count: totalRegistrations, error: regCountError } = await supabaseAdmin
+          .from('registrations')
+          .select('*', { count: 'exact', head: true })
 
-The participant has been notified via email with their QR code.`
+        const { count: totalMembers, error: membersError } = await supabaseAdmin
+          .from('registration_members')
+          .select('*', { count: 'exact', head: true })
 
-        await fetch(`${whatsappServiceUrl}/test-message`, {
+        const totalPeople = (totalRegistrations || 0) + (totalMembers || 0)
+
+        const webhookPayload = {
+          type: 'registration_approved',
+          registration: {
+            id: registrationId,
+            code: registrationCode,
+            name: name,
+            workshop: workshopName,
+            email: email,
+            approved_at: new Date().toISOString(),
+            registration_type: currentRegistration?.registration_type || 'solo',
+            total_teams_registered: totalTeams || 0,
+            total_people_registered: totalPeople
+          }
+        }
+
+        const webhookResponse = await fetch(n8nWebhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: whatsappMessage })
+          body: JSON.stringify(webhookPayload)
         })
-        console.log('WhatsApp notification sent successfully')
+
+        if (webhookResponse.ok) {
+          console.log('n8n webhook triggered successfully')
+        } else {
+          console.log('n8n webhook failed:', webhookResponse.status)
+        }
+      } else {
+        console.log('N8N_WEBHOOK_URL not configured')
       }
-    } catch (whatsappError) {
-      console.log('WhatsApp notification failed (non-critical):', whatsappError.message)
+    } catch (webhookError) {
+      console.log('n8n webhook error (non-critical):', webhookError instanceof Error ? webhookError.message : 'Unknown error')
     }
     
     return NextResponse.json({ 
