@@ -161,6 +161,32 @@ export async function POST(request: NextRequest) {
 
     console.log('Registration status updated successfully:', updateData)
     
+    // Send WhatsApp notification (optional, won't fail if service is down)
+    try {
+      const whatsappServiceUrl = process.env.WHATSAPP_SERVICE_URL
+      if (whatsappServiceUrl) {
+        const whatsappMessage = `🎉 *NEW REGISTRATION APPROVED* 🎉
+
+📋 *Registration Code:* ${registrationCode}
+👤 *Name:* ${name}
+🎯 *Workshop:* ${workshopName}
+
+✅ *Status:* CONFIRMED
+📅 *Approved:* ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
+
+The participant has been notified via email with their QR code.`
+
+        await fetch(`${whatsappServiceUrl}/test-message`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: whatsappMessage })
+        })
+        console.log('WhatsApp notification sent successfully')
+      }
+    } catch (whatsappError) {
+      console.log('WhatsApp notification failed (non-critical):', whatsappError.message)
+    }
+    
     return NextResponse.json({ 
       success: true, 
       messageId: result.messageId,
