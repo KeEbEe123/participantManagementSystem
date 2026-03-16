@@ -46,7 +46,6 @@ const client = new Client({
   }),
   puppeteer: {
     headless: true,
-    executablePath: chromePath,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -229,7 +228,6 @@ app.get('/status', (req, res) => {
     whatsappReady: client.info ? true : false,
     clientInfo: client.info,
     uptime: process.uptime(),
-    chromePath: chromePath
   });
 });
 
