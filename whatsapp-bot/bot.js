@@ -38,6 +38,8 @@ const client = new Client({
   }),
   puppeteer: {
     headless: true,
+    // Use system Chrome if available, otherwise let Puppeteer handle it
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -46,7 +48,12 @@ const client = new Client({
       '--no-first-run',
       '--no-zygote',
       '--single-process',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--disable-web-security',
+      '--disable-features=VizDisplayCompositor',
+      '--disable-background-timer-throttling',
+      '--disable-backgrounding-occluded-windows',
+      '--disable-renderer-backgrounding'
     ]
   }
 });

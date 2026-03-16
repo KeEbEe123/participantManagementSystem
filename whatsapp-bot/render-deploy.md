@@ -27,8 +27,14 @@
 - **Root Directory**: `whatsapp-bot`
 
 **Build & Deploy:**
+- **Runtime**: `Docker`
+- **Dockerfile Path**: `Dockerfile.render` (optimized for Render)
+- **Build Command**: Leave empty (Docker handles this)
+- **Start Command**: Leave empty (Docker handles this)
+
+**Alternative (if Docker fails):**
 - **Runtime**: `Node`
-- **Build Command**: `npm install`
+- **Build Command**: `npm install && npx puppeteer browsers install chrome`
 - **Start Command**: `npm start`
 
 ### 5. Environment Variables
@@ -36,7 +42,12 @@
 Add these environment variables in Render dashboard:
 
 ```
-
+NEXT_PUBLIC_SUPABASE_URL=https://iszvepiattpqlvorovpr.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzenZlcGlhdHRwcWx2b3JvdnByIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzMxNzYwMywiZXhwIjoyMDg4ODkzNjAzfQ.QObxg2HnVkNQilYISOLPuhapbOszmSK5NBATmqkpOI8
+WHATSAPP_GROUP_ID=your_group_id@g.us
+PORT=3001
+NODE_ENV=production
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ```
 
 ### 6. Deploy
@@ -90,10 +101,15 @@ node get-group-id.js
 
 ### Common Issues:
 
-1. **QR Code not appearing**: Check if Puppeteer dependencies are installed
-2. **WhatsApp session lost**: Re-authenticate by redeploying and scanning QR
-3. **Group messages not sending**: Verify group ID format (`xxxxx@g.us`)
-4. **Database connection issues**: Check Supabase credentials
+1. **Chrome/Puppeteer Issues**: 
+   - Error: "Could not find Chrome" - Use `Dockerfile.render` instead of `Dockerfile`
+   - If Docker fails, try Node runtime with build command: `npm install && npx puppeteer browsers install chrome`
+   - Add environment variable: `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true`
+
+2. **QR Code not appearing**: Check if Puppeteer dependencies are installed
+3. **WhatsApp session lost**: Re-authenticate by redeploying and scanning QR
+4. **Group messages not sending**: Verify group ID format (`xxxxx@g.us`)
+5. **Database connection issues**: Check Supabase credentials
 
 ### Render-Specific Notes:
 

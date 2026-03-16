@@ -49,7 +49,9 @@ node get-group-id.js
 
 ### Option 1: Render (Recommended)
 1. Follow the detailed guide in `whatsapp-bot/render-deploy.md`
-2. The bot will run 24/7 (with paid plan) or sleep after 15 minutes (free tier)
+2. **Important**: Use `Dockerfile.render` for better Chrome/Puppeteer support
+3. If Docker fails, use Node runtime with build command: `npm install && npx puppeteer browsers install chrome`
+4. The bot will run 24/7 (with paid plan) or sleep after 15 minutes (free tier)
 
 ### Option 2: Local Development
 ```bash
@@ -61,7 +63,8 @@ npm run dev
 ### Option 3: Docker
 ```bash
 cd whatsapp-bot
-docker build -t whatsapp-bot .
+# Use the optimized Dockerfile
+docker build -f Dockerfile.render -t whatsapp-bot .
 docker run -d --name whatsapp-bot -p 3001:3001 --env-file .env whatsapp-bot
 ```
 
@@ -139,6 +142,7 @@ NODE_ENV=production
 
 ## 🆘 Troubleshooting
 
+- **Chrome/Puppeteer Issues**: Use `Dockerfile.render` instead of `Dockerfile`, or try Node runtime with `npm install && npx puppeteer browsers install chrome`
 - **QR Code Issues**: Check Puppeteer dependencies in Docker
 - **Group Messages Not Sending**: Verify group ID format and permissions
 - **Database Connection**: Check Supabase credentials and network access
