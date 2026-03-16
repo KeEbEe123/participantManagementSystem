@@ -38,7 +38,8 @@ const supabase = createClient(
 console.log('✅ Supabase client initialized');
 
 // WhatsApp client setup
-
+const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || "/opt/render/.cache/puppeteer/chrome/linux-146.0.7680.76/chrome-linux64/chrome";
+console.log('🚀 Bot startup - Chrome path:', chromePath);
 
 const client = new Client({
   authStrategy: new LocalAuth({
@@ -46,6 +47,7 @@ const client = new Client({
   }),
   puppeteer: {
     headless: true,
+    executablePath: chromePath,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -164,19 +166,7 @@ async function sendWhatsAppNotification(registration) {
     // Send message to the group
     await client.sendMessage(groupId, message);
     
-    console.log(`✅ WhatsApp notification sent for registration: ${registration.registration_code}`);
-    
-    // Mark as notified in Supabase
-    const { error: updateError } = await supabase
-      .from('registrations')
-      .update({ whatsapp_notified: true })
-      .eq('id', registration.id);
-
-    if (updateError) {
-      console.error('Error updating whatsapp_notified status:', updateError);
-    } else {
-      console.log(`📝 Marked registration ${registration.registration_code} as WhatsApp notified`);
-    }
+    console.log(`✅ WhatsAppotification sent for registration: ${registration.registration_code}`);
     
   } catch (error) {
     console.error('Error sending WhatsApp notification:', error);
@@ -227,7 +217,8 @@ app.get('/status', (req, res) => {
   res.json({
     whatsappReady: client.info ? true : false,
     clientInfo: client.info,
-    uptime: process.uptime(),
+    processedCount: processedRegistrations.size,
+    uptime: process.uptime()
   });
 });
 
