@@ -4,6 +4,10 @@ const qrcode = require('qrcode-terminal');
 const express = require('express');
 require('dotenv').config();
 
+// Global error handling
+process.on("uncaughtException", console.error);
+process.on("unhandledRejection", console.error);
+
 // Initialize Express server for health checks
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,6 +24,7 @@ app.get('/health', (req, res) => {
 });
 
 // Supabase client setup
+console.log('Setting up Supabase connection...');
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -30,31 +35,24 @@ const supabase = createClient(
     }
   }
 );
+console.log('✅ Supabase client initialized');
 
 // WhatsApp client setup
+const chromePath = process.env.PUPPETEER_EXECUTABLE_PATH || "/opt/render/.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome";
+console.log('🚀 Bot startup - Chrome path:', chromePath);
+
 const client = new Client({
   authStrategy: new LocalAuth({
     clientId: "workshop-registration-bot"
   }),
   puppeteer: {
     headless: true,
-    // Use system Chrome if available, otherwise let Puppeteer handle it
-    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || 
-"/opt/render/.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome",
+    executablePath: chromePath,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process',
-      '--disable-gpu',
-      '--disable-web-security',
-      '--disable-features=VizDisplayCompositor',
-      '--disable-background-timer-throttling',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-renderer-backgrounding'
+      '--disable-gpu'
     ]
   }
 });
@@ -84,7 +82,9 @@ client.on('message', async (message) => {
 });
 
 client.on('disconnected', (reason) => {
-  console.log('WhatsApp client was disconnected:', reason);
+  console.log('WhatsApp disconnected:', reason);
+  console.log('Reinitializing WhatsApp client...');
+  client.initialize();
 });
 
 // Function to start monitoring registrations
@@ -107,7 +107,7 @@ function startRegistrationMonitoring() {
 // Function to check for new approved registrations
 async function checkForNewApprovedRegistrations() {
   try {
-    // Get all confirmed registrations that haven't been processed
+    // Get all confirmed registrations that haven't been WhatsApp notified
     const { data: registrations, error } = await supabase
       .from('registrations')
       .select(`
@@ -122,9 +122,11 @@ async function checkForNewApprovedRegistrations() {
         email_id,
         status,
         created_at,
-        updated_at
+        updated_at,
+        whatsapp_notified
       `)
       .eq('status', 'confirmed')
+      .eq('whatsapp_notified', false)
       .order('updated_at', { ascending: false });
 
     if (error) {
@@ -136,21 +138,11 @@ async function checkForNewApprovedRegistrations() {
       return;
     }
 
-    // Filter out already processed registrations
-    const newRegistrations = registrations.filter(reg => 
-      !processedRegistrations.has(reg.id)
-    );
-
-    if (newRegistrations.length === 0) {
-      return;
-    }
-
-    console.log(`Found ${newRegistrations.length} new approved registrations`);
+    console.log(`📱 Found ${registrations.length} new registrations to notify`);
 
     // Process each new registration
-    for (const registration of newRegistrations) {
+    for (const registration of registrations) {
       await sendWhatsAppNotification(registration);
-      processedRegistrations.add(registration.id);
     }
 
   } catch (error) {
@@ -174,7 +166,19 @@ async function sendWhatsAppNotification(registration) {
     // Send message to the group
     await client.sendMessage(groupId, message);
     
-    console.log(`WhatsApp notification sent for registration: ${registration.registration_code}`);
+    console.log(`✅ WhatsApp notification sent for registration: ${registration.registration_code}`);
+    
+    // Mark as notified in Supabase
+    const { error: updateError } = await supabase
+      .from('registrations')
+      .update({ whatsapp_notified: true })
+      .eq('id', registration.id);
+
+    if (updateError) {
+      console.error('Error updating whatsapp_notified status:', updateError);
+    } else {
+      console.log(`📝 Marked registration ${registration.registration_code} as WhatsApp notified`);
+    }
     
   } catch (error) {
     console.error('Error sending WhatsApp notification:', error);
@@ -225,8 +229,8 @@ app.get('/status', (req, res) => {
   res.json({
     whatsappReady: client.info ? true : false,
     clientInfo: client.info,
-    processedCount: processedRegistrations.size,
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    chromePath: chromePath
   });
 });
 
