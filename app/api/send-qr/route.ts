@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import QRCode from 'qrcode'
 import { BrevoClient } from '@getbrevo/brevo'
 import { supabaseAdmin } from '../../../lib/supabase'
+import { appendToGoogleSheet } from '../../../lib/google-sheets'
 
 export async function POST(request: NextRequest) {
   try {
@@ -160,6 +161,26 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Registration status updated successfully:', updateData)
+    
+    // Update Google Sheet with participant data
+    try {
+      await appendToGoogleSheet({
+        name: name,
+        email: email,
+        mobile: existingReg.mobile_number || '',
+        rollNo: existingReg.roll_no || '',
+        college: existingReg.college_name || '',
+        registrationCode: registrationCode,
+        workshopName: workshopName,
+        registrationType: existingReg.registration_type || 'solo',
+        status: 'confirmed',
+        totalPrice: existingReg.total_price || 0,
+        approvedAt: new Date().toISOString()
+      })
+      console.log('Google Sheet updated successfully')
+    } catch (sheetError) {
+      console.log('Google Sheet update error (non-critical):', sheetError instanceof Error ? sheetError.message : 'Unknown error')
+    }
     
     // Trigger n8n webhook for WhatsApp notification
     try {

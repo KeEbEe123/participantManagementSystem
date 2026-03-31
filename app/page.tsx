@@ -10,6 +10,7 @@ import DashboardStats from './components/DashboardStats'
 import RegistrationChart from './components/RegistrationChart'
 import FilterPanel from './components/FilterPanel'
 import ParticipantTable from './components/ParticipantTable'
+import AllParticipantsTable from './components/AllParticipantsTable'
 
 export default function Dashboard() {
   const [registrations, setRegistrations] = useState<Registration[]>([])
@@ -308,18 +309,7 @@ export default function Dashboard() {
 
           {/* Participants View */}
           {activeView === 'participants' && (
-            <>
-              <FilterPanel 
-                registrations={registrations} 
-                onFilterChange={setFilteredRegistrations} 
-              />
-              <ParticipantTable 
-                registrations={currentViewData} 
-                onViewDetails={viewDetails}
-                onApprove={approveRegistration}
-                showApproveButton={true}
-              />
-            </>
+            <AllParticipantsTable />
           )}
 
           {/* Pending View */}
