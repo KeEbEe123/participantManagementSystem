@@ -113,6 +113,16 @@ export default function AllParticipantsTable() {
     }
   }
 
+  const workshopStats = useMemo(() => {
+    const stats: Record<string, number> = {}
+    participants.forEach(p => {
+      stats[p.workshopName] = (stats[p.workshopName] || 0) + 1
+    })
+    return Object.entries(stats)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+  }, [participants])
+
   const filteredAndSortedParticipants = useMemo(() => {
     let filtered = participants.filter(p => {
       const matchesSearch = 
@@ -231,6 +241,33 @@ export default function AllParticipantsTable() {
 
   return (
     <div className="space-y-4">
+      {/* Workshop Statistics */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Workshop Participation</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {workshopStats.map((stat) => (
+            <div key={stat.name} className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-600 mb-1">
+                    {stat.name}
+                  </p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {stat.count}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {stat.count === 1 ? 'participant' : 'participants'}
+                  </p>
+                </div>
+                <div className="ml-4">
+                  <Users className="w-8 h-8 text-blue-400" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Filters and Search */}
       <div className="bg-white rounded-xl border border-gray-200 p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
