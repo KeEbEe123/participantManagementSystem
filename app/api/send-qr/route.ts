@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
     // First, let's verify the registration exists
     const { data: existingReg, error: fetchError } = await supabaseAdmin
       .from('registrations')
-      .select('id, status')
+      .select('id, status, mobile_number, roll_no, college_name, registration_type, total_price')
       .eq('id', registrationId)
       .single()
 
