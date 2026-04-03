@@ -52,6 +52,16 @@ export default function AllParticipantsTable() {
 
       if (regError) throw regError
 
+      // Fetch all workshops for priority_1 lookup
+      const { data: allWorkshops, error: workshopsError } = await supabase
+        .from('workshops')
+        .select('id, name')
+
+      if (workshopsError) throw workshopsError
+
+      // Create a workshop lookup map
+      const workshopMap = new Map(allWorkshops?.map(w => [w.id, w.name]) || [])
+
       // Fetch all registration members
       const { data: members, error: membersError } = await supabase
         .from('registration_members')
@@ -64,6 +74,18 @@ export default function AllParticipantsTable() {
 
       // Add leaders
       registrations?.forEach((reg: any) => {
+        // Determine workshop name: check workshops join first, then priority_1, then workshop_id
+        let workshopName = reg.workshops?.name
+        if (!workshopName && reg.priority_1) {
+          workshopName = workshopMap.get(reg.priority_1) || `Workshop ${reg.priority_1}`
+        }
+        if (!workshopName && reg.workshop_id) {
+          workshopName = `Workshop ${reg.workshop_id}`
+        }
+        if (!workshopName) {
+          workshopName = 'Workshop Not Assigned'
+        }
+
         allParticipants.push({
           id: reg.id,
           name: reg.full_name,
@@ -72,7 +94,7 @@ export default function AllParticipantsTable() {
           rollNo: reg.roll_no,
           college: reg.college_name,
           registrationCode: reg.registration_code,
-          workshopName: reg.workshops?.name || `Workshop ${reg.workshop_id}`,
+          workshopName: workshopName,
           registrationType: reg.registration_type,
           role: 'leader',
           status: reg.status,
@@ -86,6 +108,18 @@ export default function AllParticipantsTable() {
       members?.forEach((member: RegistrationMember) => {
         const registration = registrations?.find((r: any) => r.id === member.registration_id)
         if (registration) {
+          // Determine workshop name for member (same logic as leader)
+          let workshopName = registration.workshops?.name
+          if (!workshopName && registration.priority_1) {
+            workshopName = workshopMap.get(registration.priority_1) || `Workshop ${registration.priority_1}`
+          }
+          if (!workshopName && registration.workshop_id) {
+            workshopName = `Workshop ${registration.workshop_id}`
+          }
+          if (!workshopName) {
+            workshopName = 'Workshop Not Assigned'
+          }
+
           allParticipants.push({
             id: member.id,
             name: member.full_name,
@@ -94,7 +128,7 @@ export default function AllParticipantsTable() {
             rollNo: member.roll_no,
             college: member.college_name,
             registrationCode: registration.registration_code,
-            workshopName: registration.workshops?.name || `Workshop ${registration.workshop_id}`,
+            workshopName: workshopName,
             registrationType: registration.registration_type,
             role: 'member',
             status: registration.status,
